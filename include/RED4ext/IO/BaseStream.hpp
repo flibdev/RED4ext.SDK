@@ -51,12 +51,15 @@ struct BaseStream
     int32_t flags; // 08
     int32_t unkC;  // 0C
     // involved in handle resolving
-    struct {
+    /*struct
+    {
         // writes handle ID into id
         virtual void sub_18(void * handle, uint32_t id);
         // resolves handle from ID
         virtual void sub_48(uint32_t id, void * handle);
     } * unk10; // 10
+    */
+    int64_t unk10; // 10
     int64_t unk18; // 18
 };
 RED4EXT_ASSERT_SIZE(BaseStream, 0x20);
