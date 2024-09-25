@@ -4,6 +4,16 @@
 
 // This file is generated from the Game's Reflection data
 
+#include <RED4ext/Scripting/Natives/entIPlacedComponent.hpp>
+
+namespace RED4ext
+{
+RED4EXT_ASSERT_SIZE(ent::IPlacedComponent, 0x120);
+using entIPlacedComponent = ent::IPlacedComponent;
+using IPlacedComponent = ent::IPlacedComponent;
+} // namespace RED4ext
+
+/*
 #include <cstdint>
 #include <RED4ext/Common.hpp>
 #include <RED4ext/Handle.hpp>
@@ -31,5 +41,6 @@ RED4EXT_ASSERT_SIZE(IPlacedComponent, 0x120);
 using entIPlacedComponent = ent::IPlacedComponent;
 using IPlacedComponent = ent::IPlacedComponent;
 } // namespace RED4ext
+*/
 
 // clang-format on

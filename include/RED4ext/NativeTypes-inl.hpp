@@ -133,7 +133,12 @@ RED4EXT_INLINE RED4ext::Variant::Variant(const RED4ext::CBaseRTTIType* aType, co
     }
 }
 
-RED4EXT_INLINE RED4ext::Variant::Variant(const RED4ext::CName& aTypeName, const RED4ext::ScriptInstance aData)
+RED4EXT_INLINE RED4ext::Variant::Variant(RED4ext::CName aTypeName)
+    : Variant(RED4ext::CRTTISystem::Get()->GetType(aTypeName))
+{
+}
+
+RED4EXT_INLINE RED4ext::Variant::Variant(RED4ext::CName aTypeName, const RED4ext::ScriptInstance aData)
     : Variant(RED4ext::CRTTISystem::Get()->GetType(aTypeName), aData)
 {
 }
@@ -143,9 +148,34 @@ RED4EXT_INLINE RED4ext::Variant::Variant(const Variant& aOther)
 {
 }
 
+RED4EXT_INLINE RED4ext::Variant::Variant(Variant&& aOther) noexcept
+    : type(aOther.type)
+{
+    std::copy(std::begin(aOther.inlined), std::end(aOther.inlined), std::begin(inlined));
+    std::fill(std::begin(aOther.inlined), std::end(aOther.inlined), static_cast<uint8_t>(0));
+    aOther.type = nullptr;
+}
+
 RED4EXT_INLINE RED4ext::Variant::~Variant()
 {
     Free();
+}
+
+RED4EXT_INLINE RED4ext::Variant& RED4ext::Variant::operator=(const Variant& aRhs)
+{
+    Fill(aRhs.GetType(), aRhs.GetDataPtr());
+    return *this;
+}
+
+RED4EXT_INLINE RED4ext::Variant& RED4ext::Variant::operator=(Variant&& aRhs) noexcept
+{
+    type = aRhs.type;
+    aRhs.type = nullptr;
+
+    std::copy(std::begin(aRhs.inlined), std::end(aRhs.inlined), std::begin(inlined));
+    std::fill(std::begin(aRhs.inlined), std::end(aRhs.inlined), static_cast<uint8_t>(0));
+
+    return *this;
 }
 
 RED4EXT_INLINE bool RED4ext::Variant::IsEmpty() const noexcept
@@ -257,4 +287,69 @@ RED4EXT_INLINE void RED4ext::Variant::Free()
 RED4EXT_INLINE bool RED4ext::Variant::CanBeInlined(const RED4ext::CBaseRTTIType* aType) noexcept
 {
     return aType->GetSize() <= InlineSize && aType->GetAlignment() <= InlineAlignment;
+}
+
+template<typename T>
+RED4EXT_INLINE float* RED4ext::CurveBuffer<T>::GetPoints() noexcept
+{
+    return reinterpret_cast<float*>(reinterpret_cast<uint8_t*>(this) + offsetPoints);
+}
+
+template<typename T>
+RED4EXT_INLINE T* RED4ext::CurveBuffer<T>::GetValues() noexcept
+{
+    return reinterpret_cast<T*>(reinterpret_cast<uint8_t*>(this) + offsetValues);
+}
+
+template<typename T>
+RED4EXT_INLINE RED4ext::CurveBuffer<T>* RED4ext::CurveData<T>::GetCurve() const noexcept
+{
+    return reinterpret_cast<RED4ext::CurveBuffer<T>*>(buffer.data);
+}
+
+template<typename T>
+RED4EXT_INLINE uint32_t RED4ext::CurveData<T>::GetSize() const noexcept
+{
+    return GetCurve()->size;
+}
+
+template<typename T>
+RED4EXT_INLINE RED4ext::CurvePoint<T> RED4ext::CurveData<T>::GetPoint(uint32_t aIndex) const noexcept
+{
+    if (aIndex >= GetSize())
+    {
+        return {.point = std::numeric_limits<float>::infinity(), .value = T()};
+    }
+    CurveBuffer<T>* curve = GetCurve();
+    float* points = curve->GetPoints();
+    T* values = curve->GetValues();
+
+    return {points[aIndex], values[aIndex]};
+}
+
+template<typename T>
+RED4EXT_INLINE void RED4ext::CurveData<T>::SetPoint(uint32_t aIndex, const RED4ext::CurvePoint<T>& acPoint) noexcept
+{
+    SetPoint(aIndex, acPoint.point, acPoint.value);
+}
+
+template<typename T>
+RED4EXT_INLINE void RED4ext::CurveData<T>::SetPoint(uint32_t aIndex, float aPoint, const T& acValue) noexcept
+{
+    if (aIndex >= GetSize())
+    {
+        return;
+    }
+    CurveBuffer<T>* curve = GetCurve();
+    float* points = curve->GetPoints();
+    T* values = curve->GetValues();
+
+    points[aIndex] = aPoint;
+    values[aIndex] = acValue;
+}
+
+template<typename T>
+RED4EXT_INLINE RED4ext::CurvePoint<T> RED4ext::CurveData<T>::operator[](uint32_t aIndex) const noexcept
+{
+    return GetPoint(aIndex);
 }

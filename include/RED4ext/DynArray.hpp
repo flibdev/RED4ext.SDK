@@ -5,8 +5,9 @@
 #include <functional>
 #include <type_traits>
 
-#include <RED4ext/Detail/AddressHashes.hpp>
 #include <RED4ext/Common.hpp>
+#include <RED4ext/Detail/AddressHashes.hpp>
+#include <RED4ext/Memory/Allocators.hpp>
 #include <RED4ext/Relocation.hpp>
 #include <RED4ext/Utils.hpp>
 
@@ -41,6 +42,7 @@ struct DynArray
     DynArray(const DynArray& aOther)
         : DynArray(aOther.GetAllocator())
     {
+        Reserve(aOther.size);
         CopyFrom(aOther);
     }
 
@@ -54,7 +56,9 @@ struct DynArray
         if (capacity)
         {
             Clear();
-            GetAllocator()->Free(entries);
+            auto allocator = *reinterpret_cast<T**>(GetAllocator());
+            reinterpret_cast<Memory::IAllocator*>(&allocator)->Free(entries);
+            entries = allocator;
             capacity = 0;
         }
     }
@@ -64,6 +68,7 @@ struct DynArray
         if (this != std::addressof(aOther))
         {
             Clear();
+            Reserve(aOther.size);
             CopyFrom(aOther);
         }
 
@@ -181,14 +186,17 @@ struct DynArray
 
     void Reserve(uint32_t aCount)
     {
-        constexpr uint32_t alignment = alignof(T);
+        if (capacity >= aCount)
+            return;
 
         auto newCapacity = CalculateGrowth(aCount);
-        using func_t = void (*)(DynArray * aThis, uint32_t aCapacity, uint32_t aElementSize, uint32_t aAlignment,
-                                void (*a5)(int64_t, int64_t, int64_t, int64_t));
+        SetCapacity(newCapacity);
+    }
 
-        static UniversalRelocFunc<func_t> func(Detail::AddressHashes::DynArray_Realloc);
-        func(this, newCapacity, sizeof(T), alignment >= 8 ? alignment : 8, nullptr);
+    void ShrinkToSize()
+    {
+        if (capacity > size)
+            SetCapacity(size);
     }
 
     Memory::IAllocator* GetAllocator() const
@@ -304,12 +312,7 @@ private:
     uint32_t CalculateGrowth(uint32_t aNewSize)
     {
         uint32_t geometric = capacity + (capacity / 2);
-        if (geometric < aNewSize)
-        {
-            return aNewSize;
-        }
-
-        return geometric;
+        return (std::max)(aNewSize, geometric);
     }
 
     void CopyFrom(const DynArray& aOther)
@@ -318,6 +321,20 @@ private:
         {
             PushBack(aOther[i]);
         }
+    }
+
+    void SetCapacity(uint32_t aNewCapacity)
+    {
+        if (aNewCapacity < size)
+            return;
+
+        constexpr uint32_t alignment = alignof(T);
+
+        using func_t = void (*)(DynArray* aThis, uint32_t aCapacity, uint32_t aElementSize, uint32_t aAlignment,
+                                void (*aMoveFunc)(T* aDstBuffer, T* aSrcBuffer, int32_t aSrcSize, DynArray* aSrcArray));
+
+        static UniversalRelocFunc<func_t> func(Detail::AddressHashes::DynArray_Realloc);
+        func(this, aNewCapacity, sizeof(T), alignment >= 8 ? alignment : 8, nullptr);
     }
 
     void MoveFrom(DynArray&& aOther)
